@@ -57,6 +57,12 @@ main{padding:12px;max-width:700px;margin:0 auto;padding-bottom:80px}
 .wh .qty{color:#1d4ed8;font-weight:700;font-size:16px}
 .wh.done .name,.wh.done .qty{text-decoration:line-through;color:#9ca3af}
 .wh.done{background:#f9fafb}
+.wh .nfbtn{border:0;border-radius:8px;background:#fef3c7;color:#92400e;font-size:14px;font-weight:600;padding:0 10px;height:34px;flex:none;white-space:nowrap}
+.wh.nf{background:#fffbeb}
+.wh.nf .name{color:#92400e}
+.wh .nftag{color:#b45309;font-weight:700;font-size:14px;flex:none}
+.nfsec h2{background:#fef3c7}
+.nfclr{border:0;border-radius:8px;background:#dbeafe;color:#1d4ed8;font-weight:600;font-size:15px;padding:0 14px;height:36px;flex:none}
 .del{border:0;background:#fee2e2;color:#b91c1c;border-radius:8px;width:36px;height:36px;font-size:20px;line-height:1}
 .form{background:#fff;border-radius:12px;padding:14px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .form h3{margin:0 0 10px;font-size:17px}
@@ -170,7 +176,7 @@ onSnapshot(collection(db,CATS),s=>{
   loaded.c=true;serverCats=!s.metadata.fromCache;err=null;refresh();trySeed();
 },e=>{err=e;render()});
 onSnapshot(collection(db,ITEMS),s=>{
-  rawItems=s.docs.map(d=>{const x=d.data();return{id:d.id,t:x.t||'',cat:x.cat,order:x.order||0,need:!!x.need,qty:x.qty||1,unit:x.unit||'bottle',done:!!x.done}});
+  rawItems=s.docs.map(d=>{const x=d.data();return{id:d.id,t:x.t||'',cat:x.cat,order:x.order||0,need:!!x.need,qty:x.qty||1,unit:x.unit||'bottle',done:!!x.done,nf:!!x.nf}});
   loaded.i=true;err=null;refresh();
 },e=>{err=e;render()});
 
@@ -212,15 +218,17 @@ function viewList(){
 function viewWh(){
   const cs=M.filter(c=>c.items.some(i=>i.need));
   if(!cs.length)return `<div class="empty">לא נבחרו פריטים.<br>עבור למצב רשימה וסמן מה צריך.</div>`;
-  const all=M.flatMap(c=>c.items.filter(i=>i.need)),left=all.filter(i=>!i.done).length;
-  return `<p class="sum">נשארו ${left} מתוך ${all.length} פריטים</p>`+cs.map(c=>{
+  const all=M.flatMap(c=>c.items.filter(i=>i.need)),left=all.filter(i=>!i.done&&!i.nf).length,nfn=all.filter(i=>i.nf).length;
+  return `<p class="sum">נשארו ${left} מתוך ${all.length} פריטים${nfn?` · ${nfn} לא נמצאו`:''}</p>`+cs.map(c=>{
     const its=c.items.filter(i=>i.need);
-    return `<section class="cat"><h2><span>${esc(c.name)}</span><small>${its.filter(i=>!i.done).length}/${its.length}</small></h2>`+
-    its.map(i=>`<div class="item wh${i.done?' done':''}" data-act="done" data-c="${c.id}" data-i="${i.id}"><span class="name">${esc(i.t)}</span>${c.qty?`<span class="qty">${qtyLabel(i)}</span>`:''}</div>`).join('')+`</section>`}).join('')+
+    return `<section class="cat"><h2><span>${esc(c.name)}</span><small>${its.filter(i=>!i.done&&!i.nf).length}/${its.length}</small></h2>`+
+    its.map(i=>i.nf?`<div class="item wh nf"><span class="name">${esc(i.t)}</span>${c.qty?`<span class="qty">${qtyLabel(i)}</span>`:''}<span class="nftag">לא נמצא</span></div>`:`<div class="item wh${i.done?' done':''}" data-act="done" data-c="${c.id}" data-i="${i.id}"><span class="name">${esc(i.t)}</span>${c.qty?`<span class="qty">${qtyLabel(i)}</span>`:''}${i.done?'':`<button class="nfbtn" data-act="nf" data-c="${c.id}" data-i="${i.id}">לא מצאתי</button>`}</div>`).join('')+`</section>`}).join('')+
     `<div class="tools"><button data-act="reset">נקה את כל הבחירות</button></div>`;
 }
 function viewMan(){
-  return `<div class="form"><h3>הוספת מוצר</h3>
+  const nfs=M.flatMap(c=>c.items.filter(i=>i.need&&i.nf).map(i=>({c,i})));
+  const nfHtml=nfs.length?`<section class="cat nfsec"><h2><span>סומנו "לא מצאתי"</span><small>${nfs.length}</small></h2>`+nfs.map(({c,i})=>`<div class="item"><span class="name">${esc(i.t)} <small style="color:#6b7280">${esc(c.name)}</small></span><button class="nfclr" data-act="nfClear" data-c="${c.id}" data-i="${i.id}">בטל</button></div>`).join('')+`</section>`:'';
+  return nfHtml+`<div class="form"><h3>הוספת מוצר</h3>
     <label>שם המוצר</label><input type="text" id="pName" placeholder="לדוגמה: קולה לייט">
     <label>קטגוריה</label><select id="pCat">${M.map(c=>`<option value="${c.id}"${c.id==lastCat?' selected':''}>${esc(c.name)}</option>`).join('')}</select>
     <button class="btn" data-act="addProd">הוסף מוצר</button></div>
@@ -275,7 +283,7 @@ function reorder(list,coll,x,y){
 }
 function keep(el,sel){pendingKeep={sel,top:el.getBoundingClientRect().top,t:Date.now()}}
 
-const needsItem=['need','inc','dec','unit','done','delItem','editItem','itemUp','itemDown'];
+const needsItem=['nf','nfClear','need','inc','dec','unit','done','delItem','editItem','itemUp','itemDown'];
 document.addEventListener('click',e=>{
   const el=e.target.closest('[data-act]');if(!el)return;
   const a=el.dataset.act,c=el.dataset.c,i=el.dataset.i;
@@ -283,7 +291,7 @@ document.addEventListener('click',e=>{
   if(needsItem.includes(a)&&!it)return;
   if(['catUp','catDown','delCat','editCat'].includes(a)&&!cc)return;
   switch(a){
-    case 'need':w(updateDoc(iref(i),it.need?{need:false,done:false,qty:1,unit:'bottle'}:{need:true}));break;
+    case 'need':w(updateDoc(iref(i),it.need?(it.nf?{need:false,done:false,qty:1,unit:'bottle',nf:false}:{need:false,done:false,qty:1,unit:'bottle'}):{need:true}));break;
     case 'inc':w(updateDoc(iref(i),{qty:increment(1)}));break;
     case 'dec':if(it.qty>1)w(updateDoc(iref(i),{qty:increment(-1)}));break;
     case 'unit':w(updateDoc(iref(i),{unit:it.unit==='case'?'bottle':'case'}));break;
@@ -291,9 +299,11 @@ document.addEventListener('click',e=>{
     case 'reset':{
       if(!confirm('לנקות את כל הבחירות?'))return;
       const b=writeBatch(db);let n=0;
-      M.forEach(x=>x.items.forEach(z=>{if(z.need||z.done){b.update(iref(z.id),{need:false,done:false,qty:1,unit:'bottle'});n++}}));
+      M.forEach(x=>x.items.forEach(z=>{if(z.need||z.done||z.nf){b.update(iref(z.id),z.nf?{need:false,done:false,qty:1,unit:'bottle',nf:false}:{need:false,done:false,qty:1,unit:'bottle'});n++}}));
       if(n)w(b.commit());
       break}
+    case 'nf':w(updateDoc(iref(i),{nf:true,done:false}));break;
+    case 'nfClear':if(S.mode!=='manage')return;w(updateDoc(iref(i),{nf:false}));break;
     case 'addProd':addProd();break;
     case 'addCat':addCat();break;
     case 'delItem':if(confirm(`להסיר את "${it.t}" מהרשימה?`))w(deleteDoc(iref(i)));break;
