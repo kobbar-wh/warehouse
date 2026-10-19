@@ -122,6 +122,8 @@ main{padding:12px;max-width:700px;margin:0 auto;padding-bottom:80px}
 <div id="edCatWrap"><label>קטגוריה</label><select id="edCat"></select></div>
 <div class="err" id="edErr"></div>
 <div class="btns"><button class="btn" id="edOk">שמור</button><button class="btn gray" id="edCancel">ביטול</button></div></div></div>
+<div id="ex" class="ov" hidden><div class="dlg"><h3>לצאת מהאפליקציה?</h3>
+<div class="btns"><button class="btn" id="exYes">כן, צא</button><button class="btn gray" id="exNo">להישאר</button></div></div></div>
 <div id="cl" class="ov" hidden><div class="dlg"><h3>כל הפריטים טופלו 🎉</h3>
 <p style="margin:0 0 8px;font-size:17px">לנקות את כל הבחירות?</p>
 <div class="btns"><button class="btn" id="clYes">כן, נקה</button><button class="btn gray" id="clNo">לא</button></div></div></div>
@@ -423,6 +425,44 @@ function saveEdit(){
   }else if(cat(c)){w(updateDoc(doc(db,CATS,c),{name:n}))}
   hideEdit();
 }
+// ---- ריענון אוטומטי כשיוצאת גרסה חדשה ----
+let verBase=null,verBusy=false;
+async function verFetch(){
+  const r=await fetch(location.pathname+'?v='+Date.now(),{cache:'no-store'});
+  if(!r.ok)throw 0;
+  const t=await r.text();let h=t.length;
+  for(let i=0;i<t.length;i+=7)h=(h*31+t.charCodeAt(i))|0;
+  return h;
+}
+async function verCheck(){
+  if(verBusy||!navigator.onLine)return;
+  verBusy=true;
+  try{
+    const h=await verFetch();
+    if(verBase===null)verBase=h;
+    else if(h!==verBase){
+      const busy=[...document.querySelectorAll('.ov')].some(o=>!o.hidden)||/INPUT|TEXTAREA|SELECT/.test((document.activeElement||{}).tagName||'');
+      if(!busy)location.reload();
+    }
+  }catch(e){}
+  verBusy=false;
+}
+verCheck();
+setInterval(verCheck,120000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)verCheck()});
+// ---- חלון יציאה (כפתור חזרה) ----
+history.replaceState({base:1},'');history.pushState({guard:1},'');
+let exiting=false;
+addEventListener('popstate',()=>{
+  if(exiting)return;
+  history.pushState({guard:1},'');
+  const open=[...document.querySelectorAll('.ov')].find(o=>!o.hidden&&o.id!=='ex');
+  if(open){open.hidden=true;return}
+  $('ex').hidden=!$('ex').hidden;
+});
+$('exNo').onclick=()=>{$('ex').hidden=true};
+$('ex').addEventListener('click',e=>{if(e.target.id==='ex')$('ex').hidden=true});
+$('exYes').onclick=()=>{exiting=true;$('ex').hidden=true;history.go(-2);setTimeout(()=>{try{window.close()}catch(e){}},300)};
 $('clYes').onclick=()=>{$('cl').hidden=true;clearAll()};
 $('clNo').onclick=()=>{$('cl').hidden=true};
 $('edOk').onclick=saveEdit;
