@@ -451,10 +451,14 @@ verCheck();
 setInterval(verCheck,120000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)verCheck()});
 // ---- חלון יציאה (כפתור חזרה) ----
-history.replaceState({base:1},'');history.pushState({guard:1},'');
+(function(){const st=history.state;
+  if(st&&st.guard)return;
+  if(!(st&&st.base))history.replaceState({base:1},'');
+  history.pushState({guard:1},'');
+})();
 let exiting=false;
-addEventListener('popstate',()=>{
-  if(exiting)return;
+addEventListener('popstate',e=>{
+  if(exiting){if(e.state&&e.state.base)history.back();return}
   history.pushState({guard:1},'');
   const open=[...document.querySelectorAll('.ov')].find(o=>!o.hidden&&o.id!=='ex');
   if(open){open.hidden=true;return}
@@ -462,7 +466,7 @@ addEventListener('popstate',()=>{
 });
 $('exNo').onclick=()=>{$('ex').hidden=true};
 $('ex').addEventListener('click',e=>{if(e.target.id==='ex')$('ex').hidden=true});
-$('exYes').onclick=()=>{exiting=true;$('ex').hidden=true;history.go(-2);setTimeout(()=>{try{window.close()}catch(e){}},300)};
+$('exYes').onclick=()=>{exiting=true;$('ex').hidden=true;history.back();setTimeout(()=>{try{window.close()}catch(e){}},400);setTimeout(()=>{if(!document.hidden){exiting=false;history.pushState({guard:1},'')}},2000)};
 $('clYes').onclick=()=>{$('cl').hidden=true;clearAll()};
 $('clNo').onclick=()=>{$('cl').hidden=true};
 $('edOk').onclick=saveEdit;
