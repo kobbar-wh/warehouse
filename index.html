@@ -453,12 +453,19 @@ verCheck();
 setInterval(verCheck,120000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)verCheck()});
 // ---- חלון יציאה (כפתור חזרה) ----
-(function(){const st=history.state;
+let exiting=false;
+// Chrome מדלג על רשומות היסטוריה שנוספו לפני שהמשתמש נגע בדף, לכן מוסיפים את השומר רק אחרי המגע הראשון
+let guarded=false;
+function addGuard(){
+  if(guarded)return;guarded=true;
+  const st=history.state;
   if(st&&st.guard)return;
   if(!(st&&st.base))history.replaceState({base:1},'');
   history.pushState({guard:1},'');
-})();
-let exiting=false;
+}
+['click','pointerup','touchend','keydown'].forEach(ev=>addEventListener(ev,addGuard,{passive:true}));
+addEventListener('pageshow',()=>{exiting=false});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)exiting=false});
 addEventListener('popstate',e=>{
   if(exiting){if(e.state&&e.state.base)history.back();return}
   history.pushState({guard:1},'');
