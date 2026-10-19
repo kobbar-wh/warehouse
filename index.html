@@ -122,6 +122,9 @@ main{padding:12px;max-width:700px;margin:0 auto;padding-bottom:80px}
 <div id="edCatWrap"><label>קטגוריה</label><select id="edCat"></select></div>
 <div class="err" id="edErr"></div>
 <div class="btns"><button class="btn" id="edOk">שמור</button><button class="btn gray" id="edCancel">ביטול</button></div></div></div>
+<div id="cl" class="ov" hidden><div class="dlg"><h3>כל הפריטים טופלו 🎉</h3>
+<p style="margin:0 0 8px;font-size:17px">לנקות את כל הבחירות?</p>
+<div class="btns"><button class="btn" id="clYes">כן, נקה</button><button class="btn gray" id="clNo">לא</button></div></div></div>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { initializeFirestore, getFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch, runTransaction, increment } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -209,7 +212,7 @@ function viewList(){
     return `<section class="cat"><h2><span>${esc(c.name)}</span><small>סומנו ${n} מתוך ${c.items.length}</small></h2>`+
     (c.items.length?c.items.map(i=>`<div class="item pick${i.need?' need':''}" data-act="need" data-c="${c.id}" data-i="${i.id}">
       <span class="box">${i.need?'✓':''}</span><span class="name">${esc(i.t)}</span>
-      ${c.qty&&!i.need?'<span class="qtybar ph" aria-hidden="true"><span class="sq"></span><span class="n">1</span><span class="sq"></span><span class="unit"></span></span>':''}${i.need&&c.qty?`<span class="qtybar">
+      ${!i.need?'<span class="qtybar ph" aria-hidden="true"><span class="sq"></span><span class="n">1</span><span class="sq"></span><span class="unit"></span></span>':''}${i.need?`<span class="qtybar">
         <button class="sq" data-act="dec" data-c="${c.id}" data-i="${i.id}">−</button><span class="n">${i.qty}</span><button class="sq" data-act="inc" data-c="${c.id}" data-i="${i.id}">+</button>
         <button class="unit" data-act="unit" data-c="${c.id}" data-i="${i.id}">${i.unit==='case'?'ארגז':"יח'"}</button></span>`:''}
     </div>`).join(''):'<div class="empty">אין מוצרים בקטגוריה</div>')+`</section>`}).join('')+
@@ -222,7 +225,7 @@ function viewWh(){
   return `<p class="sum">נשארו ${left} מתוך ${all.length} פריטים${nfn?` · ${nfn} לא נמצאו`:''}</p>`+cs.map(c=>{
     const its=c.items.filter(i=>i.need);
     return `<section class="cat"><h2><span>${esc(c.name)}</span><small>${its.filter(i=>!i.done&&!i.nf).length}/${its.length}</small></h2>`+
-    its.map(i=>i.nf?`<div class="item wh nf"><span class="name">${esc(i.t)}</span>${c.qty?`<span class="qty">${qtyLabel(i)}</span>`:''}<span class="nftag">לא נמצא</span></div>`:`<div class="item wh${i.done?' done':''}" data-act="done" data-c="${c.id}" data-i="${i.id}"><span class="name">${esc(i.t)}</span>${c.qty?`<span class="qty">${qtyLabel(i)}</span>`:''}${i.done?'':`<button class="nfbtn" data-act="nf" data-c="${c.id}" data-i="${i.id}">לא מצאתי</button>`}</div>`).join('')+`</section>`}).join('')+
+    its.map(i=>i.nf?`<div class="item wh nf"><span class="name">${esc(i.t)}</span><span class="qty">${qtyLabel(i)}</span><span class="nftag">לא נמצא</span></div>`:`<div class="item wh${i.done?' done':''}" data-act="done" data-c="${c.id}" data-i="${i.id}"><span class="name">${esc(i.t)}</span><span class="qty">${qtyLabel(i)}</span>${i.done?'':`<button class="nfbtn" data-act="nf" data-c="${c.id}" data-i="${i.id}">לא מצאתי</button>`}</div>`).join('')+`</section>`}).join('')+
     `<div class="tools"><button data-act="reset">נקה את כל הבחירות</button></div>`;
 }
 function viewMan(){
@@ -234,7 +237,6 @@ function viewMan(){
     <button class="btn" data-act="addProd">הוסף מוצר</button></div>
   <div class="form"><h3>קטגוריה חדשה</h3>
     <label>שם הקטגוריה</label><input type="text" id="cName" placeholder="לדוגמה: ניקיון">
-    <label class="chk"><input type="checkbox" id="cQty"> כולל כמות (יח' / ארגז)</label>
     <button class="btn blue" data-act="addCat">הוסף קטגוריה</button></div>`+
   M.map((c,ci)=>`<section class="cat"><h2><span>${esc(c.name)} <small>(${c.items.length})</small></span>
     <span class="acts"><button class="mv mini" data-act="catUp" data-c="${c.id}"${ci==0?' disabled':''} aria-label="הזז קטגוריה למעלה">▲</button><button class="mv mini" data-act="catDown" data-c="${c.id}"${ci==M.length-1?' disabled':''} aria-label="הזז קטגוריה למטה">▼</button><button class="edit mini" data-act="editCat" data-c="${c.id}" title="ערוך קטגוריה">✏️</button><button class="del mini" data-act="delCat" data-c="${c.id}" title="מחק קטגוריה">🗑</button></span></h2>`+
@@ -250,10 +252,10 @@ function render(){
   if(err){v.innerHTML=`<div class="empty">${err.code==='permission-denied'?'אין הרשאת גישה לנתונים.<br>יש להוסיף את כללי Firestore של האפליקציה.':'שגיאת חיבור.<br>בדוק אינטרנט ורענן את הדף.'}</div>`;return}
   if(!(loaded.c&&loaded.i)){v.innerHTML='<div class="empty">טוען...</div>';return}
   let saved=null;
-  if(S.mode==='manage'&&$('pName')){const f=document.activeElement;saved={pName:$('pName').value,pCat:$('pCat').value,cName:$('cName').value,cQty:$('cQty').checked,focus:f&&f.id}}
+  if(S.mode==='manage'&&$('pName')){const f=document.activeElement;saved={pName:$('pName').value,pCat:$('pCat').value,cName:$('cName').value,focus:f&&f.id}}
   v.innerHTML=S.mode==='list'?viewList():S.mode==='warehouse'?viewWh():viewMan();
   if(saved){
-    $('pName').value=saved.pName;$('cName').value=saved.cName;$('cQty').checked=saved.cQty;
+    $('pName').value=saved.pName;$('cName').value=saved.cName;
     if([...$('pCat').options].some(o=>o.value==saved.pCat))$('pCat').value=saved.pCat;
     if(saved.focus&&$(saved.focus))$(saved.focus).focus();
   }
@@ -261,11 +263,55 @@ function render(){
     const pk=pendingKeep;pendingKeep=null;
     if(Date.now()-pk.t<1500){const nb=document.querySelector(pk.sel);if(nb)window.scrollBy(0,nb.getBoundingClientRect().top-pk.top)}
   }
+  checkDone();
 }
+
+// ---- סיום מצב מחסן: קונפטי + שאלת ניקוי ----
+let whPrev=null;
+function whComplete(){
+  const all=M.flatMap(c=>c.items.filter(i=>i.need));
+  return all.length>0&&all.every(i=>i.done||i.nf);
+}
+function checkDone(){
+  if(S.mode!=='warehouse'){whPrev=null;return}
+  const now=whComplete();
+  if(now&&whPrev===false)celebrate();
+  whPrev=now;
+}
+function celebrate(){
+  confetti();
+  setTimeout(()=>{if(S.mode==='warehouse'&&whComplete())$('cl').hidden=false},1800);
+}
+function confetti(){
+  if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  const W=innerWidth,H=innerHeight,dpr=window.devicePixelRatio||1;
+  const cv=document.createElement('canvas');
+  cv.style.cssText='position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:40';
+  cv.width=W*dpr;cv.height=H*dpr;document.body.appendChild(cv);
+  const x=cv.getContext('2d');x.scale(dpr,dpr);
+  const cols=['#ef4444','#f59e0b','#22c55e','#2563eb','#a855f7','#ec4899'];
+  const ps=Array.from({length:150},()=>({x:Math.random()*W,y:-20-Math.random()*H*.6,vx:(Math.random()-.5)*4,vy:2+Math.random()*4,s:7+Math.random()*7,r:Math.random()*6.28,vr:(Math.random()-.5)*.3,c:cols[Math.floor(Math.random()*cols.length)]}));
+  const t0=performance.now();
+  (function f(t){
+    x.clearRect(0,0,W,H);
+    ps.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.05;p.r+=p.vr;x.save();x.translate(p.x,p.y);x.rotate(p.r);x.fillStyle=p.c;x.fillRect(-p.s/2,-p.s/3,p.s,p.s*.6);x.restore()});
+    if(t-t0<3200)requestAnimationFrame(f);else cv.remove();
+  })(t0);
+}
+function clearAll(){
+  const b=writeBatch(db);let n=0;
+  M.forEach(x=>x.items.forEach(z=>{if(z.need||z.done||z.nf){b.update(iref(z.id),z.nf?{need:false,done:false,qty:1,unit:'bottle',nf:false}:{need:false,done:false,qty:1,unit:'bottle'});n++}}));
+  if(n)w(b.commit());
+}
+
+// ---- מניעת כפל מוצר ----
+const norm=s=>String(s).trim().replace(/\s+/g,' ').toLowerCase();
+const dupIn=(cc,name,exceptId)=>!!cc&&cc.items.some(z=>z.id!==exceptId&&norm(z.t)===norm(name));
 
 function addProd(){
   const t=$('pName').value.trim();if(!t){$('pName').focus();return}
   const cid=$('pCat').value,cc=cat(cid);if(!cc)return;
+  if(dupIn(cc,t)){toast(`"${t}" כבר קיים בקטגוריה ${cc.name}`);$('pName').focus();return}
   lastCat=cid;
   w(setDoc(doc(collection(db,ITEMS)),{t,cat:cid,order:nextOrder(cc.items),need:false,qty:1,unit:'bottle',done:false}));
   $('pName').value='';$('pName').focus();
@@ -273,8 +319,8 @@ function addProd(){
 function addCat(){
   const n=$('cName').value.trim();if(!n){$('cName').focus();return}
   const ref=doc(collection(db,CATS));lastCat=ref.id;
-  w(setDoc(ref,{name:n,qty:$('cQty').checked,order:nextOrder(M)}));
-  $('cName').value='';$('cQty').checked=false;
+  w(setDoc(ref,{name:n,qty:true,order:nextOrder(M)}));
+  $('cName').value='';
 }
 function reorder(list,coll,x,y){
   const arr=[...list];[arr[x],arr[y]]=[arr[y],arr[x]];
@@ -298,9 +344,7 @@ document.addEventListener('click',e=>{
     case 'done':w(updateDoc(iref(i),{done:!it.done}));break;
     case 'reset':{
       if(!confirm('לנקות את כל הבחירות?'))return;
-      const b=writeBatch(db);let n=0;
-      M.forEach(x=>x.items.forEach(z=>{if(z.need||z.done||z.nf){b.update(iref(z.id),z.nf?{need:false,done:false,qty:1,unit:'bottle',nf:false}:{need:false,done:false,qty:1,unit:'bottle'});n++}}));
-      if(n)w(b.commit());
+      clearAll();
       break}
     case 'nf':w(updateDoc(iref(i),{nf:true,done:false}));break;
     case 'nfClear':if(S.mode!=='manage')return;w(updateDoc(iref(i),{nf:false}));break;
@@ -372,6 +416,7 @@ function saveEdit(){
   if(type==='item'){
     const it=item(c,i),to=cat($('edCat').value);
     if(it){
+      if(dupIn(to||cat(c),n,it.id)){$('edErr').textContent=`"${n}" כבר קיים בקטגוריה ${(to||cat(c)).name}`;$('edName').focus();return}
       const patch={t:n};
       if(to&&to.id!=it.cat){patch.cat=to.id;patch.order=nextOrder(to.items);lastCat=to.id}
       w(updateDoc(iref(i),patch));
@@ -379,6 +424,8 @@ function saveEdit(){
   }else if(cat(c)){w(updateDoc(doc(db,CATS,c),{name:n}))}
   hideEdit();
 }
+$('clYes').onclick=()=>{$('cl').hidden=true;clearAll()};
+$('clNo').onclick=()=>{$('cl').hidden=true};
 $('edOk').onclick=saveEdit;
 $('edCancel').onclick=hideEdit;
 $('ed').addEventListener('click',e=>{if(e.target.id==='ed')hideEdit()});
